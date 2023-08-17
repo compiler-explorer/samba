@@ -35,6 +35,10 @@ extern const struct generic_mapping file_generic_mapping;
 #undef  DBGC_CLASS
 #define DBGC_CLASS DBGC_ACLS
 
+/* S-1-15-2-1 */
+const struct dom_sid global_sid_Builtin_Package_Any_Package =
+	{ 1, 2, {0,0,0,0,0,15}, {2,1,0,0,0,0,0,0,0,0,0,0,0,0,0}};
+
 /****************************************************************************
  Data structures representing the internal ACE format.
 ****************************************************************************/
@@ -2708,6 +2712,32 @@ static canon_ace *canonicalise_acl(struct connection_struct *conn,
 	}
 
 	arrange_posix_perms(fname,&l_head );
+
+	{
+		/* S-1-15-2-1: All Application Packages (SDDL abbreviation: "AC") */
+
+		struct dom_sid sid = global_sid_Builtin_Package_Any_Package;
+		enum ace_owner owner_type = 5; // SMB_ACL_OTHER
+		struct unixid unix_ug;
+
+		unix_ug.type = ID_TYPE_NOT_SPECIFIED;
+		unix_ug.id = -1;
+
+		if ((ace = talloc(talloc_tos(), canon_ace)) == NULL)
+			goto fail;
+
+		*ace = (canon_ace) {
+			.type = SMB_ACL_OTHER,
+			.perms = 0555,
+			.attr = ALLOW_ACE,
+			.trustee = sid,
+			.unix_ug = unix_ug,
+			.owner_type = owner_type
+		};
+		ace->ace_flags = get_pai_flags(pal, ace, is_default_acl);
+
+		DLIST_ADD(l_head, ace);
+	}
 
 	print_canon_ace_list( "canonicalise_acl: ace entries after arrange", l_head );
 
